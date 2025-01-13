@@ -1,6 +1,53 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 
+
+class ProbabilityDialog(simpledialog.Dialog):
+    def __init__(self, parent, prob_true=0.5, prob_false=0.5, title=None):
+        self.prob_true = prob_true
+        self.prob_false = prob_false
+        super().__init__(parent, title=title)
+
+    def body(self, master):
+        ttk.Label(master, text="Probabilitatea pentru True:").grid(row=0, column=0)
+        self.entry_true = ttk.Entry(master)
+        self.entry_true.insert(0, str(self.prob_true))
+        self.entry_true.grid(row=0, column=1)
+
+        ttk.Label(master, text="Probabilitatea pentru False:").grid(row=1, column=0)
+        self.entry_false = ttk.Entry(master)
+        self.entry_false.insert(0, str(self.prob_false))
+        self.entry_false.grid(row=1, column=1)
+
+        self.entry_true.bind("<KeyRelease>", self.update_probabilities)
+        self.entry_false.bind("<KeyRelease>", self.update_probabilities)
+
+        return self.entry_true  # initial focus
+
+    def update_probabilities(self, event):
+        try:
+            prob_true = float(self.entry_true.get())
+
+            if 0 <= prob_true <= 1:
+                prob_false = 1 - prob_true
+                self.entry_false.delete(0, tk.END)
+                self.entry_false.insert(0, str(round((prob_false), 2)))
+                self.prob_true = prob_true
+                self.prob_false = prob_false
+
+        except ValueError:
+            pass  # Acceptam doar numere
+
+    def apply(self):
+        try:
+            self.prob_true = float(self.entry_true.get())
+            self.prob_false = float(self.entry_false.get())
+        except ValueError:
+            messagebox.showerror("Invalid input", "Please enter valid numbers for probabilities")
+            self.prob_true = None
+            self.prob_false = None
+
+
 class Interfata:
     def __init__(self):
         super().__init__()
@@ -15,6 +62,9 @@ class Interfata:
 
         """Frame Canvas"""
         self.create_canvas_frame()
+
+        self.probabilities = {}  # Dictionar pentru a stoca probabilitatile fiecarui cerc
+        self.connections = {}  # Dictionar pentru a stoca relatiile parent-child
 
         self.root.mainloop()
 
@@ -56,6 +106,7 @@ class Interfata:
                     if self.create_line_mode:
                         # Al doilea cerc selectat, deseneaza sageata
                         self.draw_arrow(self.selected_circle, self.my_canvas.selected)
+                        self.add_connection(self.selected_circle, self.my_canvas.selected)
                         self.selected_circle = None  # Reseteaza pentru a permite selectarea unui nou cerc
         else:
             self.my_canvas.selected = None
@@ -77,22 +128,21 @@ class Interfata:
             self.my_canvas.selected = selected[-1]
             tags = self.my_canvas.gettags(self.my_canvas.selected)
             if "circle" in tags:
-                # Prompt pentru introducerea textului
-                text = simpledialog.askstring("Input", "Introdu text pentru cerc:")
-                if text:
-                    # Obtine coordonatele cercului
-                    coords = self.my_canvas.coords(self.my_canvas.selected)
-                    x = (coords[0] + coords[2]) / 2
-                    y = (coords[1] + coords[3]) / 2
-                    # Creeaza text in centrul cercului
-                    text_id = self.my_canvas.create_text(x, y, text=text, tags=tags)
-                    self.my_canvas.tag_raise(text_id, self.my_canvas.selected)  # Asigura ca textul este deasupra cercului
+                prob_true, prob_false = self.probabilities.get(self.my_canvas.selected, (0.5, 0.5))
+                dialog = ProbabilityDialog(self.root, prob_true, prob_false, title="Introdu probabilitatile")
+                if dialog.prob_true is not None and dialog.prob_false is not None:
+                    self.probabilities[self.my_canvas.selected] = (dialog.prob_true, dialog.prob_false)
+                    self.update_child_probabilities(self.my_canvas.selected)
+                    print(
+                        f"Probabilitati pentru cercul {self.my_canvas.selected}: True = {dialog.prob_true}, False = {dialog.prob_false}")
 
     def delete(self):
         self.create_line_mode = False
         msg = messagebox.askyesnocancel('Info', 'Stergeti toate elementele din canvas?')
         if msg == True:
             self.my_canvas.delete("all")
+            self.probabilities.clear()  # Clear the probabilities dictionary
+            self.connections.clear()  # Clear the connections dictionary
 
     def create_line(self):
         self.create_line_mode = True  # Seteaza flag-ul pentru desenarea liniilor
@@ -125,6 +175,9 @@ class Interfata:
         # Asigura ca textul este vizibil deasupra cercului
         self.my_canvas.tag_raise(text_id, circle_id)
 
+        # Initialize the probabilities for the new circle
+        self.probabilities[circle_id] = (0.5, 0.5)
+
     def draw_arrow(self, circle1_id, circle2_id):
         # Obtine coordonatele ambelor cercuri
         coords1 = self.my_canvas.coords(circle1_id)
@@ -151,7 +204,8 @@ class Interfata:
         y2_outer = y2 + radius2 * angle2[1]
 
         # Deseneaza o linie intre punctele exterioare ale ambelor cercuri
-        arrow_line = self.my_canvas.create_line(x1_outer, y1_outer, x2_outer, y2_outer, arrow=tk.LAST, width=2, fill="black")
+        arrow_line = self.my_canvas.create_line(x1_outer, y1_outer, x2_outer, y2_outer, arrow=tk.LAST, width=2,
+                                                fill="black")
 
         self.my_canvas.tag_raise(arrow_line)
 
@@ -159,13 +213,39 @@ class Interfata:
         # Calculeaza unghiul intre doua puncte
         dx = x2 - x1
         dy = y2 - y1
-        length = (dx**2 + dy**2) ** 0.5
+        length = (dx ** 2 + dy ** 2) ** 0.5
 
         # Verifica daca lungimea este zero pentru a evita ZeroDivisionError
         if length == 0:
             return (1, 0)  # Returneaza o directie implicita (orientata spre dreapta)
 
         return (dx / length, dy / length)
+
+    def add_connection(self, parent_id, child_id):
+        if child_id not in self.connections:
+            self.connections[child_id] = []
+        self.connections[child_id].append(parent_id)
+
+    def update_child_probabilities(self, parent_id):
+        for child_id, parents in self.connections.items():
+            if parent_id in parents:
+                child_prob_true = self.calculate_conditional_probability(child_id)
+                self.probabilities[child_id] = (child_prob_true, 1 - child_prob_true)
+                print(f"Updated probabilities for child {child_id}: True = {child_prob_true}, False = {1 - child_prob_true}")
+
+    def calculate_conditional_probability(self, child_id):
+        parents = self.connections.get(child_id, [])
+        if not parents:
+            return self.probabilities[child_id][0]
+
+        # Calculate the conditional probabilities
+        prob_true = 0.0
+        for parent in parents:
+            parent_prob_true = self.probabilities[parent][0]
+            prob_true += parent_prob_true / len(parents)
+
+        return prob_true
+
 
 if __name__ == "__main__":
     Interfata()

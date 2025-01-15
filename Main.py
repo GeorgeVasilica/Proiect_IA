@@ -83,6 +83,7 @@ class Interfata:
         ttk.Button(btn_frame, text="Creeaza Linie", command=self.create_line).pack(side='left', padx=5)
         ttk.Button(btn_frame, text="Creeaza Cerc", command=self.create_circle).pack(side='left', padx=5)
         ttk.Button(btn_frame, text="Sterge Tot", command=self.delete).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Help", command=self.show_help).pack(side='left', padx=5)
 
         self.selected_circle = None  # Pentru a urmari primul cerc selectat pentru crearea sagetii
         self.create_line_mode = False  # Pentru a urmari daca butonul "Creeaza Linie" este activ
@@ -177,6 +178,9 @@ class Interfata:
 
         # Initialize the probabilities for the new circle
         self.probabilities[circle_id] = (0.5, 0.5)
+
+    def show_help(self):
+    messagebox.showinfo("Help", "Prin apăsarea butonului 'Creează Linie', selectați două cercuri pentru a desena o linie între ele. Prin apăsarea butonului 'Creează Cerc', puteți adăuga un nou cerc în canvas. Butonul 'Șterge Tot' va elimina toate elementele din canvas.")
 
     def draw_arrow(self, circle1_id, circle2_id):
         # Obtine coordonatele ambelor cercuri

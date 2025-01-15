@@ -251,7 +251,7 @@ class Interfata:
         return prob_true
 
     def show_probability_table(self):
-    """Afiseaza un tabel al probabilitatilor pentru toate nodurile."""
+        """Afiseaza un tabel al probabilitatilor pentru toate nodurile."""
         if not self.probabilities:
             messagebox.showinfo("Info", "Nu exista probabilitati de afisat!")
             return

@@ -251,27 +251,27 @@ class Interfata:
         return prob_true
 
     def show_probability_table(self):
-    """Afișează un tabel al probabilităților pentru toate nodurile."""
-    if not self.probabilities:
-        messagebox.showinfo("Info", "Nu există probabilități de afișat!")
-        return
+    """Afiseaza un tabel al probabilitatilor pentru toate nodurile."""
+        if not self.probabilities:
+            messagebox.showinfo("Info", "Nu exista probabilitati de afisat!")
+            return
 
-    table_window = tk.Toplevel(self.root)
-    table_window.title("Tabelul de Probabilități")
+        table_window = tk.Toplevel(self.root)
+        table_window.title("Tabelul de Probabilitati")
 
-    tree = ttk.Treeview(table_window, columns=("Nod", "Prob. True", "Prob. False", "Părinți", "Bunici"), show="headings")
-    tree.heading("Nod", text="Nod")
-    tree.heading("Prob. True", text="Prob. True")
-    tree.heading("Prob. False", text="Prob. False")
-    tree.heading("Părinți", text="Părinți")
-    tree.heading("Bunici", text="Bunici")
-    tree.pack(fill="both", expand=True)
+        tree = ttk.Treeview(table_window, columns=("Nod", "Prob. True", "Prob. False", "Parinti", "Bunici"), show="headings")
+        tree.heading("Nod", text="Nod")
+        tree.heading("Prob. True", text="Prob. True")
+        tree.heading("Prob. False", text="Prob. False")
+        tree.heading("Parinti", text="Parinti")
+        tree.heading("Bunici", text="Bunici")
+        tree.pack(fill="both", expand=True)
 
-    for node, (prob_true, prob_false) in self.probabilities.items():
-        group_tag = self.my_canvas.gettags(node)[0]
-        parents = ", ".join(self.connections.get(group_tag, []))
-        grandparents = ", ".join(self.grandparent_connections.get(group_tag, []))
-        tree.insert("", "end", values=(group_tag, prob_true, prob_false, parents, grandparents))
+        for node, (prob_true, prob_false) in self.probabilities.items():
+            group_tag = self.my_canvas.gettags(node)[0]
+            parents = ", ".join(self.connections.get(group_tag, []))
+            grandparents = ", ".join(self.grandparent_connections.get(group_tag, []))
+            tree.insert("", "end", values=(group_tag, prob_true, prob_false, parents, grandparents))
 
 
 if __name__ == "__main__":

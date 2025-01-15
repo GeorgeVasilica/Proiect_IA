@@ -180,7 +180,7 @@ class Interfata:
         self.probabilities[circle_id] = (0.5, 0.5)
 
     def show_help(self):
-    messagebox.showinfo("Help", "Prin apăsarea butonului 'Creează Linie', selectați două cercuri pentru a desena o linie între ele. Prin apăsarea butonului 'Creează Cerc', puteți adăuga un nou cerc în canvas. Butonul 'Șterge Tot' va elimina toate elementele din canvas.")
+        messagebox.showinfo("Help", "Prin apasarea butonului 'Creeaza Linie', selectati doua cercuri pentru a desena o linie intre ele. Prin apasarea butonului 'Creeaza Cerc', puteti adauga un nou cerc in canvas. Butonul 'Sterge Tot' va elimina toate elementele din canvas.")
 
     def draw_arrow(self, circle1_id, circle2_id):
         # Obtine coordonatele ambelor cercuri

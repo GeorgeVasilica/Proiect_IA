@@ -61,7 +61,15 @@ class ConditionalProbabilityDialog(simpledialog.Dialog):
         ttk.Label(master, text=f"P({self.child_tag} = Nu)").grid(row=0, column=3)
 
         self.entries = []
-        for i, (p1, p2, p_true, p_false) in enumerate(self.probabilities):
+        for i, probs in enumerate(self.probabilities):
+            # Verifica daca sunt 3 valori in loc de 4
+            if len(probs) == 3:
+                p1, p_true, p_false = probs
+                p2 = ''  # Furnizeaza un string gol implicit sau alta valoare necesara
+                self.probabilities[i] = (p1, p2, p_true, p_false)  # Ajusteaza structura la 4 valori
+            else:
+                p1, p2, p_true, p_false = probs  # Daca sunt deja 4 valori, descompune normal
+
             ttk.Label(master, text=p1).grid(row=i + 1, column=0)
             ttk.Label(master, text=p2).grid(row=i + 1, column=1)
             entry_true = ttk.Entry(master)
@@ -72,7 +80,7 @@ class ConditionalProbabilityDialog(simpledialog.Dialog):
             entry_false.grid(row=i + 1, column=3)
             self.entries.append((entry_true, entry_false))
 
-        return None  # Nu exista focus initial
+        return None  # Fara focus initial
 
     def apply(self):
         try:
@@ -87,8 +95,6 @@ class ConditionalProbabilityDialog(simpledialog.Dialog):
 
 class Interfata:
     def __init__(self):
-        super().__init__()
-
         self.root = tk.Tk()
         self.root.geometry('720x480')
         self.root.title('Proiect IA GUI')
@@ -117,8 +123,11 @@ class Interfata:
         ttk.Button(btn_frame, text="Creeaza Linie", command=self.create_line).pack(side='left', padx=5)
         ttk.Button(btn_frame, text="Creeaza Cerc", command=self.create_circle).pack(side='left', padx=5)
         ttk.Button(btn_frame, text="Sterge Tot", command=self.delete).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Seteaza ca Adevarat", command=self.set_true).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Seteaza ca Fals", command=self.set_false).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Calculare Probabilitate", command=self.calculate_probability).pack(side='left',
+                                                                                                       padx=5)
         ttk.Button(btn_frame, text="Help", command=self.show_help).pack(side='left', padx=5)
-
         self.selected_circle = None
         self.create_line_mode = False
 
@@ -172,14 +181,16 @@ class Interfata:
                         parents = self.connections.get(self.my_canvas.selected, [])
                         parent_tags = [self.my_canvas.gettags(p)[0] for p in parents]
                         parent_probabilities = [
-                            ("Da", "Da", 0.5, 0.5),
-                            ("Da", "Nu", 0.5, 0.5)
+                            ("Da", 0.5, 0.5),
+                            ("Nu", 0.5, 0.5)
                         ]
                         if len(parents) == 2:
-                            parent_probabilities.extend([
+                            parent_probabilities = [
+                                ("Da", "Da", 0.5, 0.5),
+                                ("Da", "Nu", 0.5, 0.5),
                                 ("Nu", "Da", 0.5, 0.5),
                                 ("Nu", "Nu", 0.5, 0.5)
-                            ])
+                            ]
 
                     dialog = ConditionalProbabilityDialog(self.root, parent_probabilities, child_tag,
                                                           title="Introdu probabilitatile conditionate")
@@ -220,8 +231,94 @@ class Interfata:
         self.my_canvas.tag_raise(text_id, circle_id)
         self.probabilities[circle_id] = (0.5, 0.5)
 
+    def set_true(self):
+        if self.my_canvas.selected:
+            self.my_canvas.itemconfig(self.my_canvas.selected, fill='blue')
+            self.probabilities[self.my_canvas.selected] = (1.0, 0.0)
+
+    def set_false(self):
+        if self.my_canvas.selected:
+            self.my_canvas.itemconfig(self.my_canvas.selected, fill='red')
+            self.probabilities[self.my_canvas.selected] = (0.0, 1.0)
+
+    def calculate_probability(self):
+        if self.my_canvas.selected:
+            prob = self.inference(self.my_canvas.selected)
+            messagebox.showinfo("Probabilitate", f"Probabilitatea ca nodul selectat sa fie adevarat este {prob:.4f}")
+
+    def inference(self, node):
+        """Calculul probabilitatii pentru un nod avand in vedere parintii si bunicii sai."""
+        return self.calculate_conditional_probability(node)
+
+    def calculate_conditional_probability(self, node, visited=None):
+        if visited is None:
+            visited = set()
+
+        # Verifica dependenta circulara
+        if node in visited:
+            raise ValueError(f"Dependenta circulara detectata la nodul: {node}")
+
+        visited.add(node)
+        parents = self.connections.get(node, [])
+
+        # Caz 1: Daca nu are parinti, returneaza probabilitatile proprii ale nodului (doar tupla)
+        if not parents:
+            prob_true, _ = self.probabilities.get(node, (0.5, 0.5))  # Implicit (0.5, 0.5) daca nu este definit
+            visited.remove(node)
+            return prob_true
+
+        # Caz 2: Daca nodul are parinti, asigura-te ca probabilitatile conditionate sunt o lista de probabilitati
+        conditional_probs = self.probabilities.get(node)
+        if not conditional_probs or not isinstance(conditional_probs, list):
+            raise ValueError(f"Probabilitatile conditionate pentru nodul {node} nu sunt definite corespunzator. "
+                             f"Se astepta lista de probabilitati, primit: {conditional_probs}")
+
+        # Colecteaza probabilitatile pentru parintii directi
+        parent_states = []
+        for parent in parents:
+            parent_prob_true = self.calculate_conditional_probability(parent, visited)
+            parent_prob_false = 1 - parent_prob_true
+            parent_states.append((parent_prob_true, parent_prob_false))
+
+        # Calculeaza probabilitatea nodului folosind starile parintilor si probabilitatile conditionate
+        total_prob_true = 0.0
+        for condition in conditional_probs:
+            # Gestioneaza nodurile cu diferite numere de parinti
+            expected_entries = len(parents) + 2  # Doua intrari pentru probabilitati (True/False)
+
+            # Caz cand este doar un parinte: tabelul ar trebui sa aiba 3 intrari (p1, p_true, p_false)
+            if len(parents) == 1:
+                expected_entries = 4
+            # Caz cand sunt doi parinti: tabelul ar trebui sa aiba 4 intrari (p1, p2, p_true, p_false)
+            elif len(parents) == 2:
+                expected_entries = 4
+
+            # Verifica daca numarul de intrari corespunde numarului asteptat
+            if len(condition) != expected_entries:
+                raise ValueError(f"Intrarea de probabilitate conditionata pentru nodul {node} nu corespunde numarului de parinti. "
+                                 f"Se asteptau {expected_entries} intrari, primit {len(condition)}: {condition}")
+
+            # Ultimele doua intrari sunt probabilitatile pentru starile True/False
+            condition_prob_true = condition[-2]
+
+            prob_product = 1.0
+            for i, (parent_prob_true, parent_prob_false) in enumerate(parent_states):
+                parent_state = condition[i]
+                if parent_state == "Da":
+                    prob_product *= parent_prob_true
+                elif parent_state == "Nu":
+                    prob_product *= parent_prob_false
+                else:
+                    raise ValueError(f"Stare parinte invalida: {parent_state}. Se astepta 'Da' sau 'Nu'.")
+
+            total_prob_true += prob_product * condition_prob_true
+
+        visited.remove(node)  # Curata setul de noduri vizitate
+        return total_prob_true
+
     def show_help(self):
-        messagebox.showinfo("Help", "Prin apasarea butonului 'Creeaza Linie', selectati doua cercuri pentru a desena o linie intre ele. Prin apasarea butonului 'Creeaza Cerc', puteti adauga un nou cerc in canvas. Butonul 'Sterge Tot' va elimina toate elementele din canvas.")
+        messagebox.showinfo("Help",
+                            "Prin apasarea butonului 'Creeaza Linie', selectati doua cercuri pentru a desena o linie intre ele. Prin apasarea butonului 'Creeaza Cerc', puteti adauga un nou cerc in canvas. Butonul 'Sterge Tot' va elimina toate elementele din canvas.")
 
     def draw_arrow(self, circle1_id, circle2_id):
         coords1 = self.my_canvas.coords(circle1_id)
@@ -238,7 +335,8 @@ class Interfata:
         y1_outer = y1 + radius1 * angle1[1]
         x2_outer = x2 + radius2 * angle2[0]
         y2_outer = y2 + radius2 * angle2[1]
-        arrow_line = self.my_canvas.create_line(x1_outer, y1_outer, x2_outer, y2_outer, arrow=tk.LAST, width=2, fill="black")
+        arrow_line = self.my_canvas.create_line(x1_outer, y1_outer, x2_outer, y2_outer, arrow=tk.LAST, width=2,
+                                                fill="black")
         self.my_canvas.tag_raise(arrow_line)
 
     def angle_to_point(self, x1, y1, x2, y2):
@@ -258,17 +356,7 @@ class Interfata:
         if "nu_este_orfan" not in self.my_canvas.gettags(child_id):
             self.my_canvas.addtag_withtag("nu_este_orfan", child_id)
 
-    def calculate_conditional_probability(self, child_id):
-        parents = self.connections.get(child_id, [])
-        if not parents:
-            return self.probabilities[child_id][0]
 
-        prob_true = 0.0
-        for parent in parents:
-            parent_prob_true = self.probabilities[parent][0]
-            prob_true += parent_prob_true / len(parents)
-
-        return prob_true
 
     def show_probability_table(self):
         """Afiseaza un tabel al probabilitatilor pentru toate nodurile."""
@@ -279,7 +367,8 @@ class Interfata:
         table_window = tk.Toplevel(self.root)
         table_window.title("Tabelul de Probabilitati")
 
-        tree = ttk.Treeview(table_window, columns=("Nod", "Prob. True", "Prob. False", "Parinti", "Bunici"), show="headings")
+        tree = ttk.Treeview(table_window, columns=("Nod", "Prob. True", "Prob. False", "Parinti", "Bunici"),
+                            show="headings")
         tree.heading("Nod", text="Nod")
         tree.heading("Prob. True", text="Prob. True")
         tree.heading("Prob. False", text="Prob. False")
@@ -294,5 +383,6 @@ class Interfata:
             tree.insert("", "end", values=(group_tag, prob_true, prob_false, parents, grandparents))
 
 
+# Apelul aplicației
 if __name__ == "__main__":
-    Interfata()
+    app = Interfata()
